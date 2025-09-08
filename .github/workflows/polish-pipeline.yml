@@ -81,6 +81,20 @@ jobs:
           htmlcov/
         retention-days: 5
 
+    - name: Create test metadata
+      run: |
+        echo "OS: ${{ matrix.os }}" > test-metadata.txt
+        echo "Python: ${{ matrix.python-version }}" >> test-metadata.txt
+        echo "Status: success" >> test-metadata.txt
+        echo "Timestamp: $(date)" >> test-metadata.txt
+
+    - name: Upload test metadata
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-metadata-${{ matrix.os }}-${{ matrix.python-version }}
+        path: test-metadata.txt
+        retention-days: 5
+
   docker-ci:
     name: Docker CI
     runs-on: ubuntu-latest
@@ -177,6 +191,25 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Download selected test artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: test-results-${{ github.event.inputs.deploy-artifact }}
+        path: ./selected-test-artifact
+
+    - name: Download test metadata
+      uses: actions/download-artifact@v4
+      with:
+        name: test-metadata-${{ github.event.inputs.deploy-artifact }}
+        path: ./test-metadata
+
+    - name: Display selected artifact info
+      run: |
+        echo "📦 Selected artifact: ${{ github.event.inputs.deploy-artifact }}"
+        echo "📄 Test metadata:"
+        cat ./test-metadata/test-metadata.txt
+        echo "✅ Artifact downloaded successfully"
+
     - name: Set up Helm
       uses: azure/setup-helm@v3
       with:
@@ -188,11 +221,21 @@ jobs:
         name: helm-chart-package
         path: .
 
+    - name: Use environment secret in development
+      run: |
+        echo "🔐 Using development environment secret"
+        echo "API Token length: ${#DEV_API_KEY}" | sed 's/./*/g'
+        echo "Database URL: $DEV_DATABASE_URL"
+      env:
+        DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
+        DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+
     - name: Deploy to Development
       run: |
-        echo " Deploying to development environment..."
-        # Add your deployment commands here
-        echo " Successfully deployed to development"
+        echo "🚀 Deploying to development environment..."
+        echo "Using artifact: ${{ github.event.inputs.deploy-artifact }}"
+        # Add deployment commands with environment secrets
+        echo "✅ Successfully deployed to development"
 
   deploy-staging:
     name: Deploy to Staging
@@ -205,6 +248,25 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Download selected test artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: test-results-${{ github.event.inputs.deploy-artifact }}
+        path: ./selected-test-artifact
+
+    - name: Download test metadata
+      uses: actions/download-artifact@v4
+      with:
+        name: test-metadata-${{ github.event.inputs.deploy-artifact }}
+        path: ./test-metadata
+
+    - name: Display selected artifact info
+      run: |
+        echo "📦 Selected artifact: ${{ github.event.inputs.deploy-artifact }}"
+        echo "📄 Test metadata:"
+        cat ./test-metadata/test-metadata.txt
+        echo "✅ Artifact downloaded successfully"
+
     - name: Set up Helm
       uses: azure/setup-helm@v3
       with:
@@ -216,11 +278,21 @@ jobs:
         name: helm-chart-package
         path: .
 
+    - name: Use environment secret in staging
+      run: |
+        echo "🔐 Using staging environment secret"
+        echo "API Token length: ${#STAGING_API_KEY}" | sed 's/./*/g'
+        echo "Database URL: $STAGING_DATABASE_URL"
+      env:
+        STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}
+        STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
     - name: Wait for manual approval
       run: echo " Manual approval received for staging deployment"
 
     - name: Deploy to Staging
       run: |
         echo "🚀 Deploying to staging environment..."
-        # Add your deployment commands here
+        echo "Using artifact: ${{ github.event.inputs.deploy-artifact }}"
+        # Add deployment commands with environment secrets
         echo " Successfully deployed to staging"
